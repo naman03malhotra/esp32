@@ -5,13 +5,14 @@
 #include <Arduino.h>
 #include <ArduinoOTA.h>
 
-#define PUMP_PIN 22
-#define LED_PIN 23
+#define PUMP_PIN 23
+#define LED_PIN 22
 #define SOIL_MOISTURE_PIN 32
 #define SYSTEM_UP_PIN 26
-#define SOIL_MOISTURE_THRESHOLD 2100
-#define TIME_TO_PUMP 45
-#define TIME_TO_WAIT 30
+#define SOIL_MOISTURE_THRESHOLD 2500
+#define SOIL_MALFUNCTION_CONSTANT 4095
+#define TIME_TO_PUMP 60
+#define TIME_TO_WAIT 60
 
 #define wifi_ssid "Deco 804 Mesh"
 #define wifi_password "yoman33333333"
@@ -136,47 +137,40 @@ void loop()
   }
   client.loop();
 
-  delay(1000);
+  delay(2000);
   int soil_moisture = analogRead(SOIL_MOISTURE_PIN);
   int is_sensor_on = 0;
   String msg = "";
   msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
   client.publish(topic, msg.c_str(), true);
 
-  while (soil_moisture > SOIL_MOISTURE_THRESHOLD)
+  if (soil_moisture == SOIL_MALFUNCTION_CONSTANT)
+    return;
+
+  if (soil_moisture >= SOIL_MOISTURE_THRESHOLD)
   {
     digitalWrite(PUMP_PIN, HIGH);
     digitalWrite(LED_PIN, HIGH);
     is_sensor_on = 1; // ON
 
-    for (int i = 0; i < TIME_TO_PUMP; i++)
-    { // Loop for 60 seconds, publishing every second
+    for (int i = 0; i < TIME_TO_PUMP; i = i + 2)
+    {
       soil_moisture = analogRead(SOIL_MOISTURE_PIN);
       msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
       client.publish(topic, msg.c_str(), true);
-      delay(1000);
+      delay(2000);
     }
 
     digitalWrite(PUMP_PIN, LOW);
     digitalWrite(LED_PIN, LOW);
     is_sensor_on = 2; // WAIT
 
-    for (int i = 0; i < TIME_TO_WAIT; i++)
-    { // Loop for another 30 seconds, publishing every second
+    for (int i = 0; i < TIME_TO_WAIT; i = i + 2)
+    {
       soil_moisture = analogRead(SOIL_MOISTURE_PIN);
       msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
       client.publish(topic, msg.c_str(), true);
-      delay(1000);
+      delay(2000);
     }
-
-    soil_moisture = analogRead(SOIL_MOISTURE_PIN);
-    msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
-    client.publish(topic, msg.c_str(), true);
   }
-
-  is_sensor_on = 0; // OFF
-  soil_moisture = analogRead(SOIL_MOISTURE_PIN);
-  msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
-  client.publish(topic, msg.c_str(), true);
-  delay(1000);
 }
