@@ -18,7 +18,7 @@
 #define wifi_ssid "Deco 804 Mesh"
 #define wifi_password "yoman33333333"
 #define mqtt_server "192.168.68.250"
-#define ANOMALY_THRESHOLD 70
+#define ANOMALY_THRESHOLD 90
 
 #define topic "/home/plant"
 #define logs_topic "/home/plant/logs"
