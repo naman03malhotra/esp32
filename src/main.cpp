@@ -9,11 +9,11 @@
 #define LED_PIN 22
 #define SOIL_MOISTURE_PIN 32
 #define SYSTEM_UP_PIN 26
-#define SOIL_MOISTURE_THRESHOLD 2600
+#define SOIL_MOISTURE_THRESHOLD 2550
 #define SOIL_MALFUNCTION_CONSTANT 4095
 #define TIME_TO_PUMP 60
 #define TIME_TO_WAIT 60
-#define SOIL_READING_INTERVAL 20
+#define SOIL_READING_INTERVAL 10
 
 #define wifi_ssid "Deco 804 Mesh"
 #define wifi_password "yoman33333333"
@@ -214,10 +214,12 @@ void loop()
     // Check for anomaly
     if (abs(soil_moisture - previousSoilMoisture) > ANOMALY_THRESHOLD)
     {
-      msg = "Anomaly detected: " + String(soil_moisture) + " (previous: " + String(previousSoilMoisture) + ")";
+      msg = "Anomaly detected: " + String(soil_moisture) + " (previous: " + String(previousSoilMoisture) + " difference: " + abs(soil_moisture - previousSoilMoisture) + ")";
       client.publish(logs_topic, msg.c_str(), true);
+      return;
     }
-    else if (soil_moisture >= SOIL_MOISTURE_THRESHOLD)
+    
+    if (soil_moisture >= SOIL_MOISTURE_THRESHOLD)
     {
       digitalWrite(PUMP_PIN, HIGH);
       digitalWrite(LED_PIN, HIGH);
