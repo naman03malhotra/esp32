@@ -18,8 +18,16 @@
 #define wifi_ssid "Deco 804 Mesh"
 #define wifi_password "yoman33333333"
 #define mqtt_server "192.168.68.250"
+#define ANOMALY_THRESHOLD 70
 
 #define topic "/home/plant"
+#define logs_topic "/home/plant/logs"
+#define logs_topic_temp "/home/plant/logs_temp"
+
+unsigned long previousMillisOTA = 0;
+unsigned long previousMillisSoil = 0;
+const long intervalOTA = 2000;                          // 2 second interval
+const long intervalSoil = SOIL_READING_INTERVAL * 1000; // Convert to milliseconds
 
 // Function prototypes
 void setup_wifi();
@@ -28,22 +36,10 @@ void reconnect();
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-void setup_wifi()
+int previousSoilMoisture = 0;
+
+void setup_ota()
 {
-  WiFi.mode(WIFI_STA);
-  // We start by connecting to a WiFi network
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(wifi_ssid);
-
-  WiFi.begin(wifi_ssid, wifi_password);
-
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-
   // Port defaults to 3232
   // ArduinoOTA.setPort(3232);
 
@@ -89,11 +85,44 @@ void setup_wifi()
       } });
 
   ArduinoOTA.begin();
+  String msg = "OTA setup success";
+  client.publish(logs_topic, msg.c_str(), true);
+}
 
-  Serial.println("");
+void log_wifi_status()
+{
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
+  String msg = "WiFi connected to Ip: " + WiFi.localIP().toString();
+  client.publish(logs_topic, msg.c_str(), true);
+}
+
+void setup_wifi()
+{
+  WiFi.mode(WIFI_STA);
+  // We start by connecting to a WiFi network
+  Serial.print("Connecting to ");
+  Serial.println(wifi_ssid);
+
+  WiFi.begin(wifi_ssid, wifi_password);
+
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.print(".");
+  }
+}
+
+void setup_mqtt()
+{
+  client.setServer(mqtt_server, 1883);
+
+  if (client.connect("ESP32Client"))
+  {
+    String msg = "MQTT server connected first attempt";
+    client.publish(logs_topic, msg.c_str(), true);
+  }
 }
 
 void reconnect()
@@ -101,17 +130,18 @@ void reconnect()
   // Loop until we're reconnected
   while (!client.connected())
   {
-    Serial.print("Attempting MQTT connection...");
+    String msg = "Attempting MQTT connection...";
+    client.publish(logs_topic, msg.c_str(), true);
 
     if (client.connect("ESP32Client"))
     {
-      Serial.println("connected");
+      msg = "Re-connected";
+      client.publish(logs_topic, msg.c_str(), true);
     }
     else
     {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
+      msg = "failed, rc=" + String(client.state()) + " try again in 5 seconds";
+      client.publish(logs_topic, msg.c_str(), true);
       delay(5000);
     }
   }
@@ -120,58 +150,98 @@ void reconnect()
 void setup()
 {
   setup_wifi();
-  client.setServer(mqtt_server, 1883);
+  setup_mqtt();
+  log_wifi_status();
+  setup_ota();
   pinMode(PUMP_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
   pinMode(SOIL_MOISTURE_PIN, INPUT);
   pinMode(SYSTEM_UP_PIN, OUTPUT);
 
   digitalWrite(SYSTEM_UP_PIN, HIGH);
+
+  // Initialize previousSoilMoisture
+  previousSoilMoisture = analogRead(SOIL_MOISTURE_PIN);
+
+  int is_sensor_on = -1;
+  String msg = "";
+  msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(previousSoilMoisture) + "}";
+  client.publish(topic, msg.c_str(), true);
+}
+
+void loop_chores()
+{
+  unsigned long currentMillis = millis();
+  previousMillisOTA = currentMillis;
+
+  ArduinoOTA.handle();
+  String msg = "OTA/Chores Loop...";
+  client.publish(logs_topic_temp, msg.c_str(), true);
+
+  if (!client.connected())
+  {
+    msg = "Reconnecting to Wifi...";
+    client.publish(logs_topic, msg.c_str(), true);
+    reconnect();
+  }
+  client.loop();
 }
 
 void loop()
 {
-  ArduinoOTA.handle();
-  if (!client.connected())
+  unsigned long currentMillis = millis();
+
+  // Handle OTA and loop chores every second
+  if (currentMillis - previousMillisOTA >= intervalOTA)
   {
-    reconnect();
+    loop_chores();
   }
-  client.loop();
 
-  delay(SOIL_READING_INTERVAL * 1000);
-  int soil_moisture = analogRead(SOIL_MOISTURE_PIN);
-  int is_sensor_on = 0;
-  String msg = "";
-  msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
-  client.publish(topic, msg.c_str(), true);
-
-  if (soil_moisture == SOIL_MALFUNCTION_CONSTANT)
-    return;
-
-  if (soil_moisture >= SOIL_MOISTURE_THRESHOLD)
+  // Handle soil moisture reading at defined intervals
+  if (currentMillis - previousMillisSoil >= intervalSoil)
   {
-    digitalWrite(PUMP_PIN, HIGH);
-    digitalWrite(LED_PIN, HIGH);
-    is_sensor_on = 1; // ON
+    previousMillisSoil = currentMillis;
 
-    for (int i = 0; i < TIME_TO_PUMP; i = i + 2)
+    int soil_moisture = analogRead(SOIL_MOISTURE_PIN);
+    int is_sensor_on = 0;
+    String msg = "";
+    msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
+    client.publish(topic, msg.c_str(), true);
+
+    if (soil_moisture == SOIL_MALFUNCTION_CONSTANT)
+      return;
+
+    // Check for anomaly
+    if (abs(soil_moisture - previousSoilMoisture) > ANOMALY_THRESHOLD)
     {
-      soil_moisture = analogRead(SOIL_MOISTURE_PIN);
-      msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
-      client.publish(topic, msg.c_str(), true);
-      delay(2000);
+      msg = "Anomaly detected: " + String(soil_moisture) + " (previous: " + String(previousSoilMoisture) + ")";
+      client.publish(logs_topic, msg.c_str(), true);
     }
-
-    digitalWrite(PUMP_PIN, LOW);
-    digitalWrite(LED_PIN, LOW);
-    is_sensor_on = 2; // WAIT
-
-    for (int i = 0; i < TIME_TO_WAIT; i = i + 2)
+    else if (soil_moisture >= SOIL_MOISTURE_THRESHOLD)
     {
-      soil_moisture = analogRead(SOIL_MOISTURE_PIN);
-      msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
-      client.publish(topic, msg.c_str(), true);
-      delay(2000);
+      digitalWrite(PUMP_PIN, HIGH);
+      digitalWrite(LED_PIN, HIGH);
+      is_sensor_on = 1; // ON
+
+      for (int i = 0; i < TIME_TO_PUMP; i = i + 2)
+      {
+        soil_moisture = analogRead(SOIL_MOISTURE_PIN);
+        msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
+        client.publish(topic, msg.c_str(), true);
+        delay(2000);
+      }
+
+      digitalWrite(PUMP_PIN, LOW);
+      digitalWrite(LED_PIN, LOW);
+      is_sensor_on = 2; // WAIT
+
+      for (int i = 0; i < TIME_TO_WAIT; i = i + 2)
+      {
+        soil_moisture = analogRead(SOIL_MOISTURE_PIN);
+        msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
+        client.publish(topic, msg.c_str(), true);
+        delay(2000);
+      }
     }
   }
 }
