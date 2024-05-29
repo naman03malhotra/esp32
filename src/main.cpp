@@ -13,6 +13,7 @@
 #define SOIL_MALFUNCTION_CONSTANT 4095
 #define TIME_TO_PUMP 60
 #define TIME_TO_WAIT 60
+#define SOIL_READING_INTERVAL 30
 
 #define wifi_ssid "Deco 804 Mesh"
 #define wifi_password "yoman33333333"
@@ -137,7 +138,7 @@ void loop()
   }
   client.loop();
 
-  delay(2000);
+  delay(SOIL_READING_INTERVAL * 1000);
   int soil_moisture = analogRead(SOIL_MOISTURE_PIN);
   int is_sensor_on = 0;
   String msg = "";
