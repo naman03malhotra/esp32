@@ -216,6 +216,8 @@ void loop()
     {
       msg = "Anomaly detected: " + String(soil_moisture) + " (previous: " + String(previousSoilMoisture) + " difference: " + abs(soil_moisture - previousSoilMoisture) + ")";
       client.publish(logs_topic, msg.c_str(), true);
+
+      previousSoilMoisture = soil_moisture;
       return;
     }
     
