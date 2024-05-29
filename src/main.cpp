@@ -243,5 +243,8 @@ void loop()
         delay(2000);
       }
     }
+
+    // Update previous soil moisture reading
+    previousSoilMoisture = soil_moisture;
   }
 }
