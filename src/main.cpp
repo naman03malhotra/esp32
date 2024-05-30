@@ -227,24 +227,24 @@ void loop()
       digitalWrite(LED_PIN, HIGH);
       is_sensor_on = 1; // ON
 
-      for (int i = 0; i < TIME_TO_PUMP; i = i + 2)
+      for (int i = 0; i <= TIME_TO_PUMP; i = i + 3)
       {
         soil_moisture = analogRead(SOIL_MOISTURE_PIN);
         msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
         client.publish(topic, msg.c_str(), true);
-        delay(2000);
+        delay(3000);
       }
 
       digitalWrite(PUMP_PIN, LOW);
       digitalWrite(LED_PIN, LOW);
       is_sensor_on = 2; // WAIT
 
-      for (int i = 0; i < TIME_TO_WAIT; i = i + 2)
+      for (int i = 0; i <= TIME_TO_WAIT; i = i + 3)
       {
         soil_moisture = analogRead(SOIL_MOISTURE_PIN);
         msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
         client.publish(topic, msg.c_str(), true);
-        delay(2000);
+        delay(3000);
       }
     }
 
