@@ -11,14 +11,14 @@
 #define SYSTEM_UP_PIN 26
 #define SOIL_MOISTURE_THRESHOLD 2400
 #define SOIL_MALFUNCTION_CONSTANT 4095
-#define TIME_TO_PUMP 30
+#define TIME_TO_PUMP 40
 #define TIME_TO_WAIT 60
 #define SOIL_READING_INTERVAL 10
 
 #define wifi_ssid "Deco 804 Mesh"
 #define wifi_password "yoman33333333"
 #define mqtt_server "192.168.68.250"
-#define ANOMALY_THRESHOLD 90
+#define ANOMALY_THRESHOLD 80
 
 #define topic "/home/plant"
 #define logs_topic "/home/plant/logs"
