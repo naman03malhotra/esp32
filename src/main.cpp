@@ -11,14 +11,14 @@
 #define SYSTEM_UP_PIN 26
 #define SOIL_MOISTURE_THRESHOLD 2400
 #define SOIL_MALFUNCTION_CONSTANT 4095
-#define TIME_TO_PUMP 40
+#define TIME_TO_PUMP 45
 #define TIME_TO_WAIT 60
 #define SOIL_READING_INTERVAL 10
 
 #define wifi_ssid "Deco 804 Mesh"
 #define wifi_password "yoman33333333"
 #define mqtt_server "192.168.68.250"
-#define ANOMALY_THRESHOLD 80
+#define ANOMALY_THRESHOLD 70
 
 #define topic "/home/plant"
 #define logs_topic "/home/plant/logs"
@@ -130,9 +130,7 @@ void reconnect()
   // Loop until we're reconnected
   while (!client.connected())
   {
-    String msg = "Attempting MQTT connection...";
-    client.publish(logs_topic, msg.c_str(), true);
-
+    String msg = "";
     if (client.connect("ESP32Client"))
     {
       msg = "Re-connected";
@@ -225,6 +223,9 @@ void loop()
     {
       digitalWrite(PUMP_PIN, HIGH);
       digitalWrite(LED_PIN, HIGH);
+      msg = "Watering plant with soil moisture: " + String(soil_moisture);
+      client.publish(logs_topic, msg.c_str(), true);
+
       is_sensor_on = 1; // ON
 
       for (int i = 0; i <= TIME_TO_PUMP; i = i + 3)
