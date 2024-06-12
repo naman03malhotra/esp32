@@ -4,21 +4,24 @@
 #include <PubSubClient.h>
 #include <Arduino.h>
 #include <ArduinoOTA.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+#include <TimeLib.h>
 
 #define PUMP_PIN 23
 #define LED_PIN 22
 #define SOIL_MOISTURE_PIN 32
 #define SYSTEM_UP_PIN 26
-#define SOIL_MOISTURE_THRESHOLD 2350
+// #define SOIL_MOISTURE_THRESHOLD 500
 #define SOIL_MALFUNCTION_CONSTANT 4095
 #define TIME_TO_PUMP 60
 #define TIME_TO_WAIT 60
-#define SOIL_READING_INTERVAL 10
+#define SOIL_READING_INTERVAL 20
 
 #define wifi_ssid "Deco 804 Mesh"
 #define wifi_password "yoman33333333"
 #define mqtt_server "192.168.68.250"
-#define ANOMALY_THRESHOLD 60
+#define ANOMALY_THRESHOLD 30
 
 #define topic "/home/plant"
 #define logs_topic "/home/plant/logs"
@@ -35,6 +38,9 @@ void reconnect();
 
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 19800, 60000); // 19800 is the offset for IST (GMT+5:30)
 
 int previousSoilMoisture = 0;
 
@@ -158,6 +164,8 @@ void setup()
 
   digitalWrite(SYSTEM_UP_PIN, HIGH);
 
+  timeClient.begin();
+
   // Initialize previousSoilMoisture
   previousSoilMoisture = analogRead(SOIL_MOISTURE_PIN);
 
@@ -188,11 +196,16 @@ void loop_chores()
 void loop()
 {
   unsigned long currentMillis = millis();
+  String currentTime = "";
 
   // Handle OTA and loop chores every second
   if (currentMillis - previousMillisOTA >= intervalOTA)
   {
     loop_chores();
+
+    timeClient.update();
+    currentTime = timeClient.getFormattedTime();
+    client.publish(logs_topic_temp, currentTime.c_str(), true);
   }
 
   // Handle soil moisture reading at defined intervals
@@ -218,34 +231,35 @@ void loop()
       previousSoilMoisture = soil_moisture;
       return;
     }
-    
-    if (soil_moisture >= SOIL_MOISTURE_THRESHOLD)
+
+    // if (soil_moisture >= SOIL_MOISTURE_THRESHOLD)
+    if (currentTime == "17:00:00") // water plant at 5pm everyday
     {
       digitalWrite(PUMP_PIN, HIGH);
       digitalWrite(LED_PIN, HIGH);
-      msg = "Watering plant with soil moisture: " + String(soil_moisture);
+      msg = "Watering plant at: " + currentTime + " with soil moisture " + String(soil_moisture);
       client.publish(logs_topic, msg.c_str(), true);
 
       is_sensor_on = 1; // ON
 
-      for (int i = 0; i <= TIME_TO_PUMP; i = i + 3)
+      for (int i = 0; i <= TIME_TO_PUMP; i = i + 5)
       {
         soil_moisture = analogRead(SOIL_MOISTURE_PIN);
         msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
         client.publish(topic, msg.c_str(), true);
-        delay(3000);
+        delay(5000);
       }
 
       digitalWrite(PUMP_PIN, LOW);
       digitalWrite(LED_PIN, LOW);
       is_sensor_on = 2; // WAIT
 
-      for (int i = 0; i <= TIME_TO_WAIT; i = i + 3)
+      for (int i = 0; i <= TIME_TO_WAIT; i = i + 5)
       {
         soil_moisture = analogRead(SOIL_MOISTURE_PIN);
         msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
         client.publish(topic, msg.c_str(), true);
-        delay(3000);
+        delay(5000);
       }
     }
 
