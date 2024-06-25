@@ -12,12 +12,12 @@
 #define LED_PIN 22
 #define SOIL_MOISTURE_PIN 32
 #define SYSTEM_UP_PIN 26
-// #define SOIL_MOISTURE_THRESHOLD 500
-#define TIME_TO_WATER "17:00:00"
+#define SOIL_MOISTURE_THRESHOLD 2500
+// #define TIME_TO_WATER "01:15:00"
 #define SOIL_MALFUNCTION_CONSTANT 4095
 #define TIME_TO_PUMP 60
 #define TIME_TO_WAIT 60
-#define SOIL_READING_INTERVAL 30
+#define SOIL_READING_INTERVAL 20
 
 #define wifi_ssid "Deco 804 Mesh"
 #define wifi_password "yoman33333333"
@@ -233,8 +233,7 @@ void loop()
       return;
     }
 
-    // if (soil_moisture >= SOIL_MOISTURE_THRESHOLD)
-    if (currentTime == TIME_TO_WATER) // water plant at 5pm everyday
+    if (soil_moisture >= SOIL_MOISTURE_THRESHOLD)
     {
       digitalWrite(PUMP_PIN, HIGH);
       digitalWrite(LED_PIN, HIGH);
