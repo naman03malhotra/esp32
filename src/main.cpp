@@ -12,17 +12,17 @@
 #define LED_PIN 22
 #define SOIL_MOISTURE_PIN 32
 #define SYSTEM_UP_PIN 26
-#define SOIL_MOISTURE_THRESHOLD 2500
+#define SOIL_MOISTURE_THRESHOLD 2350
 // #define TIME_TO_WATER "01:15:00"
 #define SOIL_MALFUNCTION_CONSTANT 4095
 #define TIME_TO_PUMP 60
 #define TIME_TO_WAIT 60
-#define SOIL_READING_INTERVAL 20
+#define SOIL_READING_INTERVAL 60
 
 #define wifi_ssid "Deco 804 Mesh"
 #define wifi_password "yoman33333333"
 #define mqtt_server "192.168.68.250"
-#define ANOMALY_THRESHOLD 30
+#define ANOMALY_THRESHOLD 25
 
 #define topic "/home/plant"
 #define logs_topic "/home/plant/logs"
@@ -182,7 +182,8 @@ void loop_chores()
   previousMillisOTA = currentMillis;
 
   ArduinoOTA.handle();
-  String msg = "OTA/Chores Loop...";
+  int soil_moisture = analogRead(SOIL_MOISTURE_PIN);
+  String msg = "{\"status\": chores loop, \"soil_moisture\":" + String(soil_moisture) + "}";
   client.publish(logs_topic_temp, msg.c_str(), true);
 
   if (!client.connected())
