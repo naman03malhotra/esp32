@@ -213,7 +213,7 @@ void loop_chores()
   timeClient.update();
 
   String currentTime = timeClient.getFormattedTime();
-  String msg = "{\"chrores\": \"true\", \"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + ", \"current_time\":" + currentTime.c_str() + "}";
+  String msg = "{\"chores\": true, \"status\": " + String(is_sensor_on) + ", \"soil_moisture\": " + String(soil_moisture) + ", \"current_time\": \"" + currentTime + "\"}";
   client.publish(logs_topic_temp, msg.c_str(), true);
 
   if (!client.connected())
