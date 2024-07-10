@@ -27,6 +27,7 @@
 #define topic "/home/plant"
 #define logs_topic "/home/plant/logs"
 #define logs_topic_temp "/home/plant/logs_temp"
+#define trigger_topic "/home/plant/trigger"
 
 unsigned long previousMillisOTA = 0;
 unsigned long previousMillisSoil = 0;
@@ -165,7 +166,7 @@ void reconnect()
   {
     if (client.connect("ESP32Client"))
     {
-      client.subscribe("/home/plant/trigger");
+      client.subscribe(trigger_topic);
       msg = "Re-connected";
       client.publish(logs_topic, msg.c_str(), true);
     }
