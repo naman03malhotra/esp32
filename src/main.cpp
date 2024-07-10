@@ -13,7 +13,6 @@
 #define SOIL_MOISTURE_PIN 32
 #define SYSTEM_UP_PIN 26
 #define SOIL_MOISTURE_THRESHOLD 2350
-// #define TIME_TO_WATER "01:15:00"
 #define SOIL_MALFUNCTION_CONSTANT 4095
 #define TIME_TO_PUMP 60
 #define TIME_TO_WAIT 60
@@ -28,6 +27,7 @@
 #define logs_topic "/home/plant/logs"
 #define logs_topic_temp "/home/plant/logs_temp"
 #define trigger_topic "/home/plant/trigger"
+#define trigger_topic_out "/home/plant/trigger/out"
 
 unsigned long previousMillisOTA = 0;
 unsigned long previousMillisSoil = 0;
@@ -139,7 +139,7 @@ void callback(char *topicx, byte *payload, unsigned int length)
     message += (char)payload[i];
   }
 
-  client.publish(logs_topic_temp, message.c_str(), true);
+  client.publish(trigger_topic_out, message.c_str(), true);
   if (message == "ON")
   {
     trigger_water_pump_on();
