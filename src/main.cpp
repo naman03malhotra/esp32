@@ -17,7 +17,7 @@
 #define SOIL_MALFUNCTION_CONSTANT 4095
 #define TIME_TO_PUMP 60
 #define TIME_TO_WAIT 60
-#define SOIL_READING_INTERVAL 60
+#define SOIL_READING_INTERVAL 30
 
 #define wifi_ssid "Deco 804 Mesh"
 #define wifi_password "yoman33333333"
@@ -43,7 +43,15 @@ PubSubClient client(espClient);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", 19800, 60000); // 19800 is the offset for IST (GMT+5:30)
 
-int previousSoilMoisture = 0;
+// int previousSoilMoisture = 0;
+int is_sensor_on = 0;
+int soil_moisture = 0;
+String msg = "";
+
+void callback(char *topicx, byte *payload, unsigned int length);
+void trigger_water_pump_on();
+void trigger_water_pump_off();
+void send_soil_moisture_reading_and_status();
 
 void setup_ota()
 {
@@ -92,7 +100,7 @@ void setup_ota()
       } });
 
   ArduinoOTA.begin();
-  String msg = "OTA setup success";
+  msg = "OTA setup success";
   client.publish(logs_topic, msg.c_str(), true);
 }
 
@@ -101,7 +109,7 @@ void log_wifi_status()
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
-  String msg = "WiFi connected to Ip: " + WiFi.localIP().toString();
+  msg = "WiFi connected to Ip: " + WiFi.localIP().toString();
   client.publish(logs_topic, msg.c_str(), true);
 }
 
@@ -121,15 +129,33 @@ void setup_wifi()
   }
 }
 
+void callback(char *topicx, byte *payload, unsigned int length)
+{
+  // Convert payload to a string
+  String message;
+  for (int i = 0; i < length; i++)
+  {
+    message += (char)payload[i];
+  }
+
+  client.publish(logs_topic_temp, message.c_str(), true);
+  if (message == "ON")
+  {
+    trigger_water_pump_on();
+  }
+
+  if (message == "OFF")
+  {
+    trigger_water_pump_off();
+  }
+}
+
 void setup_mqtt()
 {
   client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
 
-  if (client.connect("ESP32Client"))
-  {
-    String msg = "MQTT server connected first attempt";
-    client.publish(logs_topic, msg.c_str(), true);
-  }
+  reconnect();
 }
 
 void reconnect()
@@ -137,9 +163,9 @@ void reconnect()
   // Loop until we're reconnected
   while (!client.connected())
   {
-    String msg = "";
     if (client.connect("ESP32Client"))
     {
+      client.subscribe("/home/plant/trigger");
       msg = "Re-connected";
       client.publish(logs_topic, msg.c_str(), true);
     }
@@ -168,12 +194,11 @@ void setup()
   timeClient.begin();
 
   // Initialize previousSoilMoisture
-  previousSoilMoisture = analogRead(SOIL_MOISTURE_PIN);
+  soil_moisture = analogRead(SOIL_MOISTURE_PIN);
 
-  int is_sensor_on = -1;
-  String msg = "";
-  msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(previousSoilMoisture) + "}";
-  client.publish(topic, msg.c_str(), true);
+  is_sensor_on = -1;
+  send_soil_moisture_reading_and_status();
+  is_sensor_on = 0;
 }
 
 void loop_chores()
@@ -182,8 +207,12 @@ void loop_chores()
   previousMillisOTA = currentMillis;
 
   ArduinoOTA.handle();
-  int soil_moisture = analogRead(SOIL_MOISTURE_PIN);
-  String msg = "{\"status\": chores loop, \"soil_moisture\":" + String(soil_moisture) + "}";
+
+  soil_moisture = analogRead(SOIL_MOISTURE_PIN);
+  timeClient.update();
+
+  String currentTime = timeClient.getFormattedTime();
+  String msg = "{\"chrores\": \"true\", \"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + ", \"current_time\":" + currentTime.c_str() + "}";
   client.publish(logs_topic_temp, msg.c_str(), true);
 
   if (!client.connected())
@@ -198,73 +227,40 @@ void loop_chores()
 void loop()
 {
   unsigned long currentMillis = millis();
-  String currentTime = "";
 
   // Handle OTA and loop chores every second
   if (currentMillis - previousMillisOTA >= intervalOTA)
   {
     loop_chores();
-
-    timeClient.update();
-    currentTime = timeClient.getFormattedTime();
-    client.publish(logs_topic_temp, currentTime.c_str(), true);
   }
 
   // Handle soil moisture reading at defined intervals
   if (currentMillis - previousMillisSoil >= intervalSoil)
   {
     previousMillisSoil = currentMillis;
-
-    int soil_moisture = analogRead(SOIL_MOISTURE_PIN);
-    int is_sensor_on = 0;
-    String msg = "";
-    msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
-    client.publish(topic, msg.c_str(), true);
-
-    if (soil_moisture == SOIL_MALFUNCTION_CONSTANT)
-      return;
-
-    // Check for anomaly
-    if (abs(soil_moisture - previousSoilMoisture) > ANOMALY_THRESHOLD)
-    {
-      msg = "Anomaly detected: " + String(soil_moisture) + " (previous: " + String(previousSoilMoisture) + " difference: " + abs(soil_moisture - previousSoilMoisture) + ")";
-      client.publish(logs_topic, msg.c_str(), true);
-
-      previousSoilMoisture = soil_moisture;
-      return;
-    }
-
-    if (soil_moisture >= SOIL_MOISTURE_THRESHOLD)
-    {
-      digitalWrite(PUMP_PIN, HIGH);
-      digitalWrite(LED_PIN, HIGH);
-      msg = "Watering plant at: " + currentTime + " with soil moisture " + String(soil_moisture);
-      client.publish(logs_topic, msg.c_str(), true);
-
-      is_sensor_on = 1; // ON
-
-      for (int i = 0; i <= TIME_TO_PUMP; i = i + 5)
-      {
-        soil_moisture = analogRead(SOIL_MOISTURE_PIN);
-        msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
-        client.publish(topic, msg.c_str(), true);
-        delay(5000);
-      }
-
-      digitalWrite(PUMP_PIN, LOW);
-      digitalWrite(LED_PIN, LOW);
-      is_sensor_on = 2; // WAIT
-
-      for (int i = 0; i <= TIME_TO_WAIT; i = i + 5)
-      {
-        soil_moisture = analogRead(SOIL_MOISTURE_PIN);
-        msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
-        client.publish(topic, msg.c_str(), true);
-        delay(5000);
-      }
-    }
-
-    // Update previous soil moisture reading
-    previousSoilMoisture = soil_moisture;
+    send_soil_moisture_reading_and_status();
   }
+}
+
+void send_soil_moisture_reading_and_status()
+{
+  soil_moisture = analogRead(SOIL_MOISTURE_PIN);
+  msg = "{\"status\":" + String(is_sensor_on) + ", \"soil_moisture\":" + String(soil_moisture) + "}";
+  client.publish(topic, msg.c_str(), true);
+}
+
+void trigger_water_pump_on()
+{
+  is_sensor_on = 1;
+  send_soil_moisture_reading_and_status();
+  digitalWrite(PUMP_PIN, HIGH);
+  digitalWrite(LED_PIN, HIGH);
+}
+
+void trigger_water_pump_off()
+{
+  is_sensor_on = 0;
+  send_soil_moisture_reading_and_status();
+  digitalWrite(PUMP_PIN, LOW);
+  digitalWrite(LED_PIN, LOW);
 }
