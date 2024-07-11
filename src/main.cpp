@@ -16,7 +16,7 @@
 #define SOIL_MALFUNCTION_CONSTANT 4095
 #define TIME_TO_PUMP 60
 #define TIME_TO_WAIT 60
-#define SOIL_READING_INTERVAL 30
+#define SOIL_READING_INTERVAL 300
 
 #define wifi_ssid "Deco 804 Mesh"
 #define wifi_password "yoman33333333"
