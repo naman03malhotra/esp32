@@ -18,9 +18,9 @@
 #define TIME_TO_WAIT 60
 #define SOIL_READING_INTERVAL 300
 
-#define wifi_ssid "Deco 804 Mesh"
-#define wifi_password "yoman33333333"
-#define mqtt_server "192.168.68.250"
+#define wifi_ssid "#######"
+#define wifi_password "#######"
+#define mqtt_server "########" // ip address for Mqtt server
 #define ANOMALY_THRESHOLD 25
 
 #define topic "/home/plant"
